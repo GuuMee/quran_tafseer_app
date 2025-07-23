@@ -33,6 +33,10 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   List<Ayah> _allAyahs = [];
   List<Ayah> _filteredAyahs = [];
 
+  // NEW: Set to keep track of bookmarked Ayahs for quick lookup
+  // Stores strings like "surahNumber:ayahNumber"
+  Set<String> _bookmarkedAyahs = {};
+
   // Debouncer for saving scroll position
   Timer? _savePositionDebounce;
 
@@ -47,6 +51,9 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     _filteredAyahs = List.from(_allAyahs);
 
     _ayahSearchController.addListener(_onAyahSearchChanged);
+
+    // NEW: Load existing bookmarks when the screen initializes
+    _loadBookmarks(); // <--- Add this call
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialAyahNumber != null &&
@@ -71,6 +78,23 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
         }
       }
     });
+  }
+
+  // NEW METHOD: Loads bookmarks from AppPreferences
+  Future<void> _loadBookmarks() async {
+    final bookmarks = await AppPreferences.getAllBookmarks();
+    if (mounted) {
+      // Ensure the widget is still mounted before calling setState
+      setState(() {
+        _bookmarkedAyahs =
+            bookmarks
+                .map((b) => '${b['surahNumber']}:${b['ayahNumber']}')
+                .toSet();
+        print(
+          'Loaded ${_bookmarkedAyahs.length} bookmarks for SurahDetailScreen.',
+        );
+      });
+    }
   }
 
   void _onAyahSearchChanged() {
@@ -283,27 +307,90 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                         title: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Ayah Number
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Container(
-                                padding: const EdgeInsets.all(
-                                  AppDimens.paddingExtraSmall,
+                            // NEW: Row for Ayah Number and Bookmark Button
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment
+                                      .spaceBetween, // Distribute space
+                              children: [
+                                // NEW: Bookmark Button
+                                IconButton(
+                                  icon: Icon(
+                                    _bookmarkedAyahs.contains(
+                                          '${ayah.surahNumber}:${ayah.ayahNumber}',
+                                        )
+                                        ? Icons
+                                            .bookmark // Filled icon if bookmarked
+                                        : Icons
+                                            .bookmark_border, // Bordered icon if not bookmarked
+                                    color:
+                                        _bookmarkedAyahs.contains(
+                                              '${ayah.surahNumber}:${ayah.ayahNumber}',
+                                            )
+                                            ? AppColors
+                                                .primaryOrange // Color for bookmarked
+                                            : AppColors
+                                                .mediumGrey, // Color for not bookmarked
+                                  ),
+                                  onPressed: () async {
+                                    final bookmarkId =
+                                        '${ayah.surahNumber}:${ayah.ayahNumber}';
+                                    if (_bookmarkedAyahs.contains(bookmarkId)) {
+                                      await AppPreferences.removeBookmark(
+                                        ayah.surahNumber,
+                                        ayah.ayahNumber,
+                                      );
+                                      if (mounted) {
+                                        setState(() {
+                                          _bookmarkedAyahs.remove(bookmarkId);
+                                          print(
+                                            'Bookmark removed: $bookmarkId',
+                                          );
+                                        });
+                                      }
+                                    } else {
+                                      await AppPreferences.addBookmark(
+                                        ayah.surahNumber,
+                                        ayah.ayahNumber,
+                                      );
+                                      if (mounted) {
+                                        setState(() {
+                                          _bookmarkedAyahs.add(bookmarkId);
+                                          print('Bookmark added: $bookmarkId');
+                                        });
+                                      }
+                                    }
+                                  },
                                 ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.softGreen.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(
-                                    AppDimens.borderRadiusSmall,
+                                // Existing Ayah Number (wrapped in Expanded to take available space)
+                                Expanded(
+                                  // Make Ayah number take available space
+                                  child: Align(
+                                    alignment: Alignment.topRight,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                        AppDimens.paddingExtraSmall,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.softGreen.withOpacity(
+                                          0.2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppDimens.borderRadiusSmall,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Ayah ${ayah.ayahNumber}',
+                                        style: AppTextStyles.captionText
+                                            .copyWith(
+                                              color: AppColors.successGreen,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                child: Text(
-                                  'Ayah ${ayah.ayahNumber}',
-                                  style: AppTextStyles.captionText.copyWith(
-                                    color: AppColors.successGreen,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
+                              ],
                             ),
                             SizedBox(height: AppDimens.paddingSmall),
                             // Arabic Ayah Text
