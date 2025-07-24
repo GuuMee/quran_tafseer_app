@@ -7,6 +7,7 @@ import 'package:quran_tafseer_app/utils/app_constants.dart';
 import 'package:quran_tafseer_app/services/app_preferences.dart';
 import 'package:quran_tafseer_app/data/daily_ayahs_data.dart';
 import 'package:quran_tafseer_app/data/surahs_data.dart';
+import 'package:quran_tafseer_app/models/surah.dart';
 
 // --- IMPORTS FOR NAVIGATION ---
 import 'package:quran_tafseer_app/screens/surah_list_screen.dart';
@@ -15,6 +16,7 @@ import 'package:quran_tafseer_app/screens/bookmarks_screen.dart';
 import 'package:quran_tafseer_app/screens/recitation_screen.dart';
 import 'package:quran_tafseer_app/screens/juz_tafseer_screen.dart';
 import 'package:quran_tafseer_app/screens/surah_detail_screen.dart';
+import 'package:quran_tafseer_app/screens/tafseer_mode_screen.dart';
 // --- END IMPORTS ---
 
 class HomeScreen extends StatefulWidget {
@@ -42,19 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _lastReadPosition = position;
       });
-      // --- IMPORTANT: ADD DEBUG LOGS HERE ---
-      if (_lastReadPosition != null) {
-        print('--- HomeScreen Load Debug ---');
-        print(
-          'Loaded Last Read Position: Surah ${_lastReadPosition!['surahNumber']}, Ayah ${_lastReadPosition!['ayahNumber']}',
-        );
-        print('-----------------------------');
-      } else {
-        print('--- HomeScreen Load Debug ---');
-        print('No last read position found.');
-        print('-----------------------------');
-      }
-      // --- END DEBUG LOGS ---
     }
   }
 
@@ -241,6 +230,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickActionsGrid(BuildContext context) {
+    final Surah surahAlFatiha = allSurahs.firstWhere(
+      (s) => s.number == 1,
+      orElse: () {
+        debugPrint(
+          "Warning: Surah Al-Fatiha (number 1) not found in allSurahs list!",
+        );
+        return allSurahs[0]; // Fallback to the very first surah
+      },
+    );
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -281,7 +279,9 @@ class _HomeScreenState extends State<HomeScreen> {
           AppColors.goldenrod,
           () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const JuzTafseerScreen()),
+            MaterialPageRoute(
+              builder: (context) => TafseerModeScreen(surah: surahAlFatiha),
+            ),
           ),
         ),
         _buildQuickActionButton(

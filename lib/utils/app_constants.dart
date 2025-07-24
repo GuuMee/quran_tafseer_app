@@ -25,4 +25,8 @@ class AppDimens {
   // Heights & Widths (e.g., for buttons, input fields)
   static const double buttonHeight = 48.0;
   static const double inputFieldHeight = 56.0;
+
+  // NEW: Estimated Ayah Card Height for scrolling
+  static const double ayahCardHeightEstimate =
+      180.0; // Adjust this value if scrolling isn't accurate
 }

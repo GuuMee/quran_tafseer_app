@@ -12,13 +12,19 @@ import 'package:quran_tafseer_app/utils/app_constants.dart';
 import 'package:quran_tafseer_app/widgets/tafseer_text_widget.dart';
 import 'package:quran_tafseer_app/services/app_preferences.dart'; // Import AppPreferences
 
+//SurahDetailScreen Widget
+//This is the main screen that displays the details of a particular Surah. Since it needs to manage dynamic states like search queries, bookmark statuses, and scroll position, it's implemented as a StatefulWidget.
 class SurahDetailScreen extends StatefulWidget {
-  final Surah surah;
-  final int? initialAyahNumber;
+  //Properties:
+  final Surah
+  surah; //surah: A Surah object containing details about the current Surah (e.g., its number, English and Arabic names, and total number of Ayahs). This is a required parameter when navigating to this screen.
+  final int?
+  initialAyahNumber; //initialAyahNumber: An optional int that, if provided, tells the screen to automatically scroll to a specific Ayah when it loads.
 
   const SurahDetailScreen({
     super.key,
     required this.surah,
+
     this.initialAyahNumber,
   });
 
@@ -26,35 +32,57 @@ class SurahDetailScreen extends StatefulWidget {
   State<SurahDetailScreen> createState() => _SurahDetailScreenState();
 }
 
+//_SurahDetailScreenState Class: This class manages the mutable state for the SurahDetailScreen
 class _SurahDetailScreenState extends State<SurahDetailScreen> {
-  final TextEditingController _ayahSearchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  //State Variables:
+  final TextEditingController _ayahSearchController =
+      TextEditingController(); //_ayahSearchController: A TextEditingController used to manage the text input for the Ayah search bar in the AppBar.
+  final ScrollController _scrollController =
+      ScrollController(); //_scrollController: A ScrollController that allows programmatic control over the ListView's scrolling behavior, essential for scrolling to specific Ayahs and saving scroll position.
 
-  List<Ayah> _allAyahs = [];
-  List<Ayah> _filteredAyahs = [];
+  List<Ayah> _allAyahs =
+      []; //_allAyahs: A List<Ayah> that stores all the Ayah objects for the current Surah, fetched initially.
+  List<Ayah> _filteredAyahs =
+      []; //_filteredAyahs: A List<Ayah> that holds the Ayahs currently displayed. This list changes based on the search query entered by the user.
 
   // NEW: Set to keep track of bookmarked Ayahs for quick lookup
+  //_bookmarkedAyahs: A Set<String> which efficiently stores the identifiers of bookmarked Ayahs (formatted as "surahNumber:ayahNumber"). Using a Set allows for very fast contains lookups. This is a NEW addition for improved bookmark management.
   // Stores strings like "surahNumber:ayahNumber"
   Set<String> _bookmarkedAyahs = {};
 
   // Debouncer for saving scroll position
+  //_savePositionDebounce: A Timer object used to debounce the saving of the scroll position. This prevents excessive writes to preferences while the user is actively scrolling. This is a NEW and important optimization.
   Timer? _savePositionDebounce;
 
+  bool _isLoading =
+      true; //_isLoading: A boolean flag (though not directly used in the build method's main conditional rendering in this version, it's good practice for asynchronous operations).
+
+  // NEW: State for tafseer visibility
+  //_showTafseer: A bool flag that controls whether the Tafseer (explanation) and footnotes for each Ayah are visible. It defaults to false.
+  bool _showTafseer = false; // Default to not showing tafseer
+
+  //Lifecycle Methods
+  //initState(): Called once when the widget is inserted into the widget tree.
   @override
   void initState() {
     super.initState();
 
+    //Initializes _allAyahs by fetching all Ayahs for the widget.surah using getAyahsForSurah.
     _allAyahs = getAyahsForSurah(
       widget.surah.number,
       widget.surah.numberOfAyahs,
     );
+    //Initializes _filteredAyahs as a copy of _allAyahs.
     _filteredAyahs = List.from(_allAyahs);
 
+    //Attaches a listener (_onAyahSearchChanged) to _ayahSearchController so that the _performAyahSearch method is called whenever the search input changes.
     _ayahSearchController.addListener(_onAyahSearchChanged);
 
     // NEW: Load existing bookmarks when the screen initializes
+    //Calls _loadBookmarks(): This is a NEW and crucial step to load the user's saved bookmarks when the screen first appears, populating _bookmarkedAyahs
     _loadBookmarks(); // <--- Add this call
 
+    //Uses WidgetsBinding.instance.addPostFrameCallback to schedule a scroll action after the widget tree has been built. If initialAyahNumber is provided, it calculates the target scroll offset based on an estimated item height and animates the _scrollController to that position. This ensures the list is rendered before attempting to scroll.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialAyahNumber != null &&
           widget.initialAyahNumber! > 0 &&
@@ -80,12 +108,24 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     });
   }
 
-  // NEW METHOD: Loads bookmarks from AppPreferences
+  //Methods
+  // NEW: Toggle method _toggleTafseerVisibility():
+  //Toggles the _showTafseer boolean and triggers a setState to rebuild the UI, thereby showing or hiding the Tafseer sections.
+  void _toggleTafseerVisibility() {
+    setState(() {
+      _showTafseer = !_showTafseer;
+    });
+  }
+
+  // NEW METHOD: Loads bookmarks from AppPreferences _loadBookmarks():
+  //An async method that fetches all saved bookmarks using AppPreferences.getAllBookmarks().
   Future<void> _loadBookmarks() async {
     final bookmarks = await AppPreferences.getAllBookmarks();
     if (mounted) {
       // Ensure the widget is still mounted before calling setState
+      //It then converts the list of bookmark maps into a Set<String> where each string is formatted as "surahNumber:ayahNumber" (e.g., "1:5").
       setState(() {
+        //Calls setState to update the _bookmarkedAyahs set, ensuring the UI reflects the correct bookmark status. It also includes a mounted check to prevent calling setState on a disposed widget.
         _bookmarkedAyahs =
             bookmarks
                 .map((b) => '${b['surahNumber']}:${b['ayahNumber']}')
@@ -97,14 +137,20 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     }
   }
 
+  //_onAyahSearchChanged():
+  //A simple callback that triggers _performAyahSearch whenever the text in the search bar changes.
   void _onAyahSearchChanged() {
     _performAyahSearch(_ayahSearchController.text);
   }
 
+  //_performAyahSearch(String query): Filters the _allAyahs list based on the query
+  //It converts the query and Ayah text/translation/tafseer to lowercase for case-insensitive searching.
   void _performAyahSearch(String query) {
     final lowerCaseQuery = query.toLowerCase();
-
+    //Ayahs are included in _filteredAyahs if their Ayah number, Arabic text, translation text, or Tafseer text (if available) contain the search query.
     setState(() {
+      //setState is called to update the ListView with the filtered results.
+      //If the query is empty, _filteredAyahs is reset to _allAyahs.
       if (query.isEmpty) {
         _filteredAyahs = List.from(_allAyahs);
       } else {
@@ -120,7 +166,9 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     });
   }
 
+  //_saveCurrentReadPosition():
   // NEW METHOD: Saves the current visible Ayah position
+  //It implements a debouncing mechanism using Timer. When scrolling, this method is called frequently. The Timer ensures that AppPreferences.saveLastReadPosition is only called after the user has stopped scrolling for 500 milliseconds. This reduces the number of writes to preferences, improving performance and battery life.
   void _saveCurrentReadPosition() {
     // Cancel any pending save to only save after scrolling has truly stopped for 500ms
     if (_savePositionDebounce?.isActive ?? false) {
@@ -129,12 +177,15 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
 
     _savePositionDebounce = Timer(const Duration(milliseconds: 500), () {
       if (_scrollController.hasClients && _filteredAyahs.isNotEmpty) {
+        //It gets the _scrollController.offset to determine the current scroll position.
+        //It estimates the firstVisibleIndex based on the scroll offset and an estimated item height.
         final double firstVisibleOffset = _scrollController.offset;
         double estimatedItemHeight = 200.0; // Same estimation as before
 
         // Refine estimatedItemHeight if scroll extent and list length allow
         if (_scrollController.position.maxScrollExtent > 0 &&
             _filteredAyahs.length > 0) {
+          //A more refined estimatedItemHeight is calculated if possible based on maxScrollExtent.
           estimatedItemHeight =
               _scrollController.position.maxScrollExtent /
               _filteredAyahs.length;
@@ -150,14 +201,14 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
         if (firstVisibleIndex >= _filteredAyahs.length) {
           firstVisibleIndex = _filteredAyahs.length - 1;
         }
-
+        //It then retrieves the Ayah object at that firstVisibleIndex from _filteredAyahs and saves its Surah and Ayah number using AppPreferences.saveLastReadPosition.
         final Ayah lastReadAyah = _filteredAyahs[firstVisibleIndex];
 
         AppPreferences.saveLastReadPosition(
           widget.surah.number,
           lastReadAyah.ayahNumber,
         );
-
+        //Includes debug prints to show when positions are saved.
         // Debug print for saving on scroll
         print(
           '>>> Scroll Save Debug: Saved Surah ${widget.surah.number}, Ayah ${lastReadAyah.ayahNumber}',
@@ -176,30 +227,72 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     });
   }
 
+  // Method to toggle bookmark status _toggleBookmarkStatus(Ayah ayah):
+  //This method now directly updates the local _bookmarkedAyahs Set.
+  Future<void> _toggleBookmarkStatus(Ayah ayah) async {
+    //It still uses AppPreferences to persist the bookmark status.
+    bool isBookmarked = await AppPreferences.isAyahBookmarked(
+      ayah.surahNumber,
+      ayah.ayahNumber,
+    );
+    if (isBookmarked) {
+      //After adding or removing a bookmark, it immediately calls setState to update _bookmarkedAyahs and thus visually update the bookmark icon in the UI without needing FutureBuilder in AyahCard. This makes the UI more reactive and efficient.
+      await AppPreferences.removeBookmark(ayah.surahNumber, ayah.ayahNumber);
+      //Shows a SnackBar for user feedback.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bookmark removed from ${widget.surah.englishName}:${ayah.ayahNumber}',
+          ),
+        ),
+      );
+    } else {
+      await AppPreferences.addBookmark(ayah.surahNumber, ayah.ayahNumber);
+      //Shows a SnackBar for user feedback.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Bookmarked ${widget.surah.englishName}:${ayah.ayahNumber}',
+          ),
+        ),
+      );
+    }
+    // No need to call setState here, as the bookmark status is checked dynamically in the builder
+  }
+
+  //Lifecycle Methods
+  //dispose(): Called when the widget is removed from the widget tree.
   @override
   void dispose() {
     // Ensure any pending debounce timer is cancelled
+    //Cancels _savePositionDebounce: Important to prevent memory leaks if a timer is still active.
     _savePositionDebounce?.cancel();
 
     // Perform one last save on dispose, which will use the _saveCurrentReadPosition
     // logic, including its fallback, to ensure something is saved.
+    //Calls _saveCurrentReadPosition(): Ensures the final scroll position is saved when the user leaves the screen.
     _saveCurrentReadPosition();
 
+    //Removes the listener from _ayahSearchController and disposes both _ayahSearchController and _scrollController to free up resources.
     _ayahSearchController.removeListener(_onAyahSearchChanged);
     _ayahSearchController.dispose();
     _scrollController.dispose(); // Always dispose scroll controller
     super.dispose();
   }
 
+  //build() Method:
+  //Returns a Scaffold for the screen's basic layout.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.lightGrey,
       appBar: AppBar(
+        //appBar:
         backgroundColor: AppColors.primaryOrange,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            //Displays the Surah's number, English name, Arabic name, translation, and number of Ayahs in the title, using a Column for better layout.
             Text(
               '${widget.surah.number}. ${widget.surah.englishName}',
               style: AppTextStyles.appBarTitle.copyWith(fontSize: 18),
@@ -212,6 +305,22 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
             ),
           ],
         ),
+        //actions: Contains an IconButton to toggle Tafseer visibility, similar to the previous version.
+        actions: [
+          // NEW: Tafseer toggle button
+          IconButton(
+            icon: Icon(
+              _showTafseer
+                  ? Icons.menu_book_rounded
+                  : Icons.info_outline, // Change icon based on state
+              color: AppColors.white,
+            ),
+            onPressed: _toggleTafseerVisibility,
+            tooltip: _showTafseer ? 'Hide Tafseer' : 'Show Tafseer',
+          ),
+          // Add other actions if any (e.g., share, settings)
+        ],
+        //bottom: A PreferredSize widget is used to place a TextField (the search bar) directly within the AppBar area. This is a common pattern for adding persistent widgets below the main AppBar title.
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(kToolbarHeight),
           child: Padding(
@@ -220,8 +329,11 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
               vertical: AppDimens.paddingExtraSmall,
             ),
             child: TextField(
+              //The TextField is controlled by _ayahSearchController.
+              //It has a hint text, a search icon prefix, and a clear button suffix (which only appears if text is entered).
               controller: _ayahSearchController,
               decoration: InputDecoration(
+                //Styling is applied using InputDecoration and AppTextStyles
                 hintText: 'Search within Ayahs (text, translation, number)...',
                 hintStyle: AppTextStyles.bodyText.copyWith(
                   color: AppColors.mediumGrey,
@@ -262,7 +374,10 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
           ),
         ),
       ),
+      //body:
+      //Conditional Display:
       body:
+          //If _filteredAyahs is empty and the search controller is not empty, it shows a "No Ayahs found" message.
           _filteredAyahs.isEmpty && _ayahSearchController.text.isNotEmpty
               ? Center(
                 child: Text(
@@ -272,8 +387,12 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                   ),
                 ),
               )
+              //Otherwise, it displays the list of Ayahs using a NotificationListener wrapped around a ListView.separated.
+              //NotificationListener<ScrollNotification>:
+              ////NEW and crucial for _saveCurrentReadPosition. This widget listens for scroll events from its child (ListView.separated).
               : NotificationListener<ScrollNotification>(
                 // <--- NEW: Wrap ListView with NotificationListener
+                //onNotification: This callback is triggered for various scroll events. Specifically, if (scrollInfo is ScrollEndNotification) checks if the user has stopped scrolling. When this condition is met, _saveCurrentReadPosition() is called to save the last visible Ayah. Returning true allows the notification to continue to other listeners.
                 onNotification: (ScrollNotification scrollInfo) {
                   if (scrollInfo is ScrollEndNotification) {
                     // Call the method to save position when scrolling stops
@@ -282,16 +401,23 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                   // Return true to allow the notification to continue bubbling up (important!)
                   return true;
                 },
+                //ListView.separated:
                 child: ListView.separated(
+                  //controller: Attached to _scrollController
                   controller: _scrollController, // Attach the scroll controller
+                  //padding: Adds consistent padding around the list.
                   padding: const EdgeInsets.all(AppDimens.paddingMedium),
+                  //itemCount: Uses _filteredAyahs.length to display only the filtered Ayahs.
                   itemCount: _filteredAyahs.length,
+
+                  //itemBuilder:
+                  //Builds each Ayah card.
                   itemBuilder: (context, index) {
                     final ayah = _filteredAyahs[index];
                     final bool hasTafseer =
                         ayah.tafseerText != null &&
                         ayah.tafseerText!.isNotEmpty;
-
+                    //Each Ayah is displayed within a Card widget.
                     return Card(
                       elevation: 1,
                       shape: RoundedRectangleBorder(
@@ -300,14 +426,18 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                         ),
                       ),
                       color: AppColors.white,
+                      //ExpansionTile: NEW improvement. Instead of a simple Column or AyahCard widget, each Ayah is now wrapped in an ExpansionTile. This allows the Tafseer and footnotes to be hidden by default and expanded/collapsed by tapping on the Ayah's main content area.
                       child: ExpansionTile(
+                        //tilePadding: Padding for the header of the ExpansionTile.
                         tilePadding: const EdgeInsets.all(
                           AppDimens.paddingMedium,
                         ),
+                        //title: Contains the Ayah number, bookmark button, Arabic text, and translation text. This is what's visible when the tile is collapsed.
                         title: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // NEW: Row for Ayah Number and Bookmark Button
+                            //The Ayah number is on the right, and the bookmark icon is on the left.
                             Row(
                               mainAxisAlignment:
                                   MainAxisAlignment
@@ -332,6 +462,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                                             : AppColors
                                                 .mediumGrey, // Color for not bookmarked
                                   ),
+                                  //The bookmark icon's status is now directly checked against the _bookmarkedAyahs Set, making it more efficient and reactive. When the icon is pressed, it calls _toggleBookmarkStatus, which updates the Set and then setState.
                                   onPressed: () async {
                                     final bookmarkId =
                                         '${ayah.surahNumber}:${ayah.ayahNumber}';
@@ -416,10 +547,13 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                             ),
                           ],
                         ),
+                        //childrenPadding: Padding for the content displayed when the ExpansionTile is expanded.
                         childrenPadding: const EdgeInsets.symmetric(
                           horizontal: AppDimens.paddingMedium,
                         ).copyWith(bottom: AppDimens.paddingMedium),
+                        //children: Contains the Tafseer and footnotes, displayed conditionally:
                         children: [
+                          //If hasTafseer is true, it shows a "Explanation (Tafseer):" label and a TafseerTextWidget.
                           if (hasTafseer)
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,6 +580,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                               padding: const EdgeInsets.all(
                                 AppDimens.paddingSmall,
                               ),
+                              //Otherwise, it displays a "Explanation for this Ayah is not available yet" message.
                               child: Text(
                                 'Explanation for this Ayah is not available yet.',
                                 style: AppTextStyles.captionText.copyWith(
@@ -457,6 +592,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                       ),
                     );
                   },
+                  //separatorBuilder: This is used by ListView.separated to add a fixed space (SizedBox) between each Ayah card, providing clear visual separation.
                   separatorBuilder:
                       (context, index) =>
                           const SizedBox(height: AppDimens.paddingMedium),
