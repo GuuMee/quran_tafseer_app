@@ -33,6 +33,8 @@ dependencies:
   sqflite: ^2.3.0 # Use the latest version
   path_provider: ^2.1.1 # To get app's document directory
   shared_preferences: ^2.5.3 #this package is used for local data persistence, as it's simple for storing small key-value pairs like last-read positions
+  audioplayers: ^6.0.0 # <--- ADD THIS LINE the popular audioplayers package.
+  # google_fonts: ^6.1.0 # If you have this, keep it.
   # Add other packages you might need
 
   # The following adds the Cupertino Icons font to your application.

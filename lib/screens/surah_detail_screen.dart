@@ -11,6 +11,7 @@ import 'package:quran_tafseer_app/utils/app_text_styles.dart';
 import 'package:quran_tafseer_app/utils/app_constants.dart';
 import 'package:quran_tafseer_app/widgets/tafseer_text_widget.dart';
 import 'package:quran_tafseer_app/services/app_preferences.dart'; // Import AppPreferences
+import 'package:audioplayers/audioplayers.dart'; // NEW: Import audioplayers
 
 //SurahDetailScreen Widget
 //This is the main screen that displays the details of a particular Surah. Since it needs to manage dynamic states like search queries, bookmark statuses, and scroll position, it's implemented as a StatefulWidget.
@@ -61,11 +62,28 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   //_showTafseer: A bool flag that controls whether the Tafseer (explanation) and footnotes for each Ayah are visible. It defaults to false.
   bool _showTafseer = false; // Default to not showing tafseer
 
+  // NEW: AudioPlayer instance
+  late AudioPlayer _audioPlayer;
+  // NEW: ValueNotifier to track currently playing ayah
+  final ValueNotifier<int?> _currentlyPlayingAyahNumber = ValueNotifier<int?>(
+    null,
+  );
+
+  // Define a reciter and base URL for audio
+  // Example: Mishary Rashid Alafasy (quran.com audio API format)
+  // Ensure this URL is correct and accessible.
+  static const String _audioBaseUrl =
+      'https://cdn.islamic.network/quran/audio/128/ar.alafasy/';
+
   //Lifecycle Methods
   //initState(): Called once when the widget is inserted into the widget tree.
   @override
   void initState() {
     super.initState();
+
+    // NEW: Initialize AudioPlayer and setup listeners
+    _audioPlayer = AudioPlayer();
+    _setupAudioPlayerListeners();
 
     //Initializes _allAyahs by fetching all Ayahs for the widget.surah using getAyahsForSurah.
     _allAyahs = getAyahsForSurah(
@@ -106,6 +124,49 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
         }
       }
     });
+  }
+
+  // NEW: Setup listeners for audio player
+  void _setupAudioPlayerListeners() {
+    _audioPlayer.onPlayerComplete.listen((event) {
+      _currentlyPlayingAyahNumber.value = null; // Reset when audio finishes
+    });
+    // You can add more listeners here for onPlayerStateChanged, onDurationChanged, etc.
+  }
+
+  // NEW: Build audio URL for an Ayah
+  String _getAudioUrl(int surahNumber, int ayahNumber) {
+    // Format: base_url/surah_number/ayah_number.mp3
+    return '$_audioBaseUrl$surahNumber/$ayahNumber.mp3';
+  }
+
+  // NEW: Play a specific Ayah
+  Future<void> _playAyah(Ayah ayah) async {
+    // Stop any currently playing audio before playing a new one
+    await _audioPlayer.stop();
+
+    _currentlyPlayingAyahNumber.value =
+        ayah.ayahNumber; // Set the current playing ayah
+
+    final audioUrl = _getAudioUrl(ayah.surahNumber, ayah.ayahNumber);
+    print('Playing: $audioUrl'); // Debug print
+    try {
+      await _audioPlayer.play(UrlSource(audioUrl));
+    } catch (e) {
+      print('Error playing audio for Ayah ${ayah.ayahNumber}: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to play audio for Ayah ${ayah.ayahNumber}.'),
+        ),
+      );
+      _currentlyPlayingAyahNumber.value = null; // Reset on error
+    }
+  }
+
+  // NEW: Pause currently playing audio
+  Future<void> _pauseAudio() async {
+    await _audioPlayer.pause();
+    _currentlyPlayingAyahNumber.value = null; // Reset on pause
   }
 
   //Methods
@@ -273,6 +334,10 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
     //Calls _saveCurrentReadPosition(): Ensures the final scroll position is saved when the user leaves the screen.
     _saveCurrentReadPosition();
 
+    // NEW: Dispose audio player and notifier
+    _audioPlayer.dispose();
+    _currentlyPlayingAyahNumber.dispose();
+
     //Removes the listener from _ayahSearchController and disposes both _ayahSearchController and _scrollController to free up resources.
     _ayahSearchController.removeListener(_onAyahSearchChanged);
     _ayahSearchController.dispose();
@@ -417,6 +482,11 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                     final bool hasTafseer =
                         ayah.tafseerText != null &&
                         ayah.tafseerText!.isNotEmpty;
+
+                    // Determine if this Ayah is currently playing for highlighting
+                    final bool isPlayingThisAyah =
+                        _currentlyPlayingAyahNumber.value == ayah.ayahNumber;
+
                     //Each Ayah is displayed within a Card widget.
                     return Card(
                       elevation: 1,
@@ -425,9 +495,19 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                           AppDimens.borderRadiusMedium,
                         ),
                       ),
-                      color: AppColors.white,
+                      // NEW: Conditional background color for highlighting playing Ayah
+                      color:
+                          isPlayingThisAyah
+                              ? AppColors.primaryOrange.withOpacity(0.3)
+                              : AppColors.white,
                       //ExpansionTile: NEW improvement. Instead of a simple Column or AyahCard widget, each Ayah is now wrapped in an ExpansionTile. This allows the Tafseer and footnotes to be hidden by default and expanded/collapsed by tapping on the Ayah's main content area.
                       child: ExpansionTile(
+                        // Use a ValueKey to ensure ExpansionTile state is preserved/reset correctly
+                        key: ValueKey(
+                          'ayah_tile_${ayah.surahNumber}_${ayah.ayahNumber}_${_showTafseer}',
+                        ),
+                        // Control initial expansion based on the global toggle
+                        initiallyExpanded: _showTafseer,
                         //tilePadding: Padding for the header of the ExpansionTile.
                         tilePadding: const EdgeInsets.all(
                           AppDimens.paddingMedium,
@@ -436,87 +516,127 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                         title: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // NEW: Row for Ayah Number and Bookmark Button
-                            //The Ayah number is on the right, and the bookmark icon is on the left.
+                            // NEW: Row for Play/Pause, Bookmark Button and Ayah Number
+                            // The Ayah number is on the right, and the bookmark icon is on the left.
                             Row(
                               mainAxisAlignment:
                                   MainAxisAlignment
                                       .spaceBetween, // Distribute space
                               children: [
-                                // NEW: Bookmark Button
-                                IconButton(
-                                  icon: Icon(
-                                    _bookmarkedAyahs.contains(
-                                          '${ayah.surahNumber}:${ayah.ayahNumber}',
-                                        )
-                                        ? Icons
-                                            .bookmark // Filled icon if bookmarked
-                                        : Icons
-                                            .bookmark_border, // Bordered icon if not bookmarked
-                                    color:
+                                // Group Play/Pause and Bookmark buttons
+                                Row(
+                                  children: [
+                                    // NEW: Play/Pause Button for this Ayah
+                                    ValueListenableBuilder<int?>(
+                                      // Listen to changes from parent
+                                      valueListenable:
+                                          _currentlyPlayingAyahNumber,
+                                      builder: (
+                                        context,
+                                        currentPlayingAyah,
+                                        child,
+                                      ) {
+                                        final bool isThisAyahPlaying =
+                                            currentPlayingAyah ==
+                                            ayah.ayahNumber;
+                                        return IconButton(
+                                          icon: Icon(
+                                            isThisAyahPlaying
+                                                ? Icons.pause_circle_filled
+                                                : Icons.play_circle_filled,
+                                            color:
+                                                AppColors
+                                                    .successGreen, // Or any color you prefer for audio
+                                            size: 28,
+                                          ),
+                                          onPressed: () {
+                                            if (isThisAyahPlaying) {
+                                              _pauseAudio(); // Pause if this Ayah is already playing
+                                            } else {
+                                              _playAyah(ayah); // Play this Ayah
+                                            }
+                                          },
+                                        );
+                                      },
+                                    ),
+                                    // Bookmark Button
+                                    IconButton(
+                                      icon: Icon(
                                         _bookmarkedAyahs.contains(
                                               '${ayah.surahNumber}:${ayah.ayahNumber}',
                                             )
-                                            ? AppColors
-                                                .primaryOrange // Color for bookmarked
-                                            : AppColors
-                                                .mediumGrey, // Color for not bookmarked
-                                  ),
-                                  //The bookmark icon's status is now directly checked against the _bookmarkedAyahs Set, making it more efficient and reactive. When the icon is pressed, it calls _toggleBookmarkStatus, which updates the Set and then setState.
-                                  onPressed: () async {
-                                    final bookmarkId =
-                                        '${ayah.surahNumber}:${ayah.ayahNumber}';
-                                    if (_bookmarkedAyahs.contains(bookmarkId)) {
-                                      await AppPreferences.removeBookmark(
-                                        ayah.surahNumber,
-                                        ayah.ayahNumber,
-                                      );
-                                      if (mounted) {
-                                        setState(() {
-                                          _bookmarkedAyahs.remove(bookmarkId);
-                                          print(
-                                            'Bookmark removed: $bookmarkId',
+                                            ? Icons
+                                                .bookmark // Filled icon if bookmarked
+                                            : Icons
+                                                .bookmark_border, // Bordered icon if not bookmarked
+                                        color:
+                                            _bookmarkedAyahs.contains(
+                                                  '${ayah.surahNumber}:${ayah.ayahNumber}',
+                                                )
+                                                ? AppColors
+                                                    .primaryOrange // Color for bookmarked
+                                                : AppColors
+                                                    .mediumGrey, // Color for not bookmarked
+                                      ),
+                                      //The bookmark icon's status is now directly checked against the _bookmarkedAyahs Set, making it more efficient and reactive. When the icon is pressed, it calls _toggleBookmarkStatus, which updates the Set and then setState.
+                                      onPressed: () async {
+                                        final bookmarkId =
+                                            '${ayah.surahNumber}:${ayah.ayahNumber}';
+                                        if (_bookmarkedAyahs.contains(
+                                          bookmarkId,
+                                        )) {
+                                          await AppPreferences.removeBookmark(
+                                            ayah.surahNumber,
+                                            ayah.ayahNumber,
                                           );
-                                        });
-                                      }
-                                    } else {
-                                      await AppPreferences.addBookmark(
-                                        ayah.surahNumber,
-                                        ayah.ayahNumber,
-                                      );
-                                      if (mounted) {
-                                        setState(() {
-                                          _bookmarkedAyahs.add(bookmarkId);
-                                          print('Bookmark added: $bookmarkId');
-                                        });
-                                      }
-                                    }
-                                  },
+                                          if (mounted) {
+                                            setState(() {
+                                              _bookmarkedAyahs.remove(
+                                                bookmarkId,
+                                              );
+                                              print(
+                                                'Bookmark removed: $bookmarkId',
+                                              );
+                                            });
+                                          }
+                                        } else {
+                                          await AppPreferences.addBookmark(
+                                            ayah.surahNumber,
+                                            ayah.ayahNumber,
+                                          );
+                                          if (mounted) {
+                                            setState(() {
+                                              _bookmarkedAyahs.add(bookmarkId);
+                                              print(
+                                                'Bookmark added: $bookmarkId',
+                                              );
+                                            });
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ],
                                 ),
                                 // Existing Ayah Number (wrapped in Expanded to take available space)
-                                Expanded(
-                                  // Make Ayah number take available space
-                                  child: Align(
-                                    alignment: Alignment.topRight,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(
-                                        AppDimens.paddingExtraSmall,
+                                Align(
+                                  alignment: Alignment.topRight,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(
+                                      AppDimens.paddingExtraSmall,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.softGreen.withOpacity(
+                                        0.2,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.softGreen.withOpacity(
-                                          0.2,
-                                        ),
-                                        borderRadius: BorderRadius.circular(
-                                          AppDimens.borderRadiusSmall,
-                                        ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppDimens.borderRadiusSmall,
                                       ),
-                                      child: Text(
-                                        'Ayah ${ayah.ayahNumber}',
-                                        style: AppTextStyles.captionText
-                                            .copyWith(
-                                              color: AppColors.successGreen,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                    ),
+                                    child: Text(
+                                      'Ayah ${ayah.ayahNumber}',
+                                      style: AppTextStyles.captionText.copyWith(
+                                        color: AppColors.successGreen,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
