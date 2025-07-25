@@ -34,6 +34,7 @@ dependencies:
   path_provider: ^2.1.1 # To get app's document directory
   shared_preferences: ^2.5.3 #this package is used for local data persistence, as it's simple for storing small key-value pairs like last-read positions
   audioplayers: ^6.0.0 # <--- ADD THIS LINE the popular audioplayers package.
+  share_plus: ^9.0.0 # provides a convenient way to share text, files, and more across various platforms installed on the user's device
   # google_fonts: ^6.1.0 # If you have this, keep it.
   # Add other packages you might need
 

@@ -12,6 +12,7 @@ import 'package:quran_tafseer_app/utils/app_constants.dart';
 import 'package:quran_tafseer_app/widgets/tafseer_text_widget.dart';
 import 'package:quran_tafseer_app/services/app_preferences.dart'; // Import AppPreferences
 import 'package:audioplayers/audioplayers.dart'; // NEW: Import audioplayers
+import 'package:share_plus/share_plus.dart'; // NEW: Import share_plus
 
 //SurahDetailScreen Widget
 //This is the main screen that displays the details of a particular Surah. Since it needs to manage dynamic states like search queries, bookmark statuses, and scroll position, it's implemented as a StatefulWidget.
@@ -170,6 +171,33 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   }
 
   //Methods
+  // NEW METHOD: Share Ayah
+  Future<void> _shareAyah(Ayah ayah) async {
+    // Construct the text to share
+    String shareText = 'Quran Tafseer App\n\n';
+    shareText +=
+        'Surah ${widget.surah.englishName} (${widget.surah.arabicName}) - Ayah ${ayah.ayahNumber}\n\n';
+    shareText += 'Arabic Text:\n${ayah.arabicText}\n\n';
+    shareText += 'Translation:\n${ayah.translationText}\n';
+
+    if (ayah.tafseerText != null && ayah.tafseerText!.isNotEmpty) {
+      shareText += '\nExplanation (Tafseer):\n${ayah.tafseerText}\n';
+    }
+
+    // Optionally add a link to Quran.com or your app if it has a deep link
+    shareText +=
+        '\nRead more at our app Quran Tafseer, download from PlayMarket or Appstore (https://link)';
+
+    try {
+      await Share.share(shareText, subject: 'Ayah from the Quran');
+    } catch (e) {
+      print('Error sharing Ayah: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to share Ayah.')));
+    }
+  }
+
   // NEW: Toggle method _toggleTafseerVisibility():
   //Toggles the _showTafseer boolean and triggers a setState to rebuild the UI, thereby showing or hiding the Tafseer sections.
   void _toggleTafseerVisibility() {
@@ -614,6 +642,17 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                                           }
                                         }
                                       },
+                                    ),
+                                    // NEW: Share Button
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.share,
+                                        color:
+                                            AppColors
+                                                .mediumGrey, // Or a distinct share color
+                                        size: 24,
+                                      ),
+                                      onPressed: () => _shareAyah(ayah),
                                     ),
                                   ],
                                 ),
