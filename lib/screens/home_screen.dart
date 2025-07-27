@@ -13,7 +13,7 @@ import 'package:quran_tafseer_app/models/surah.dart';
 import 'package:quran_tafseer_app/screens/surah_list_screen.dart';
 import 'package:quran_tafseer_app/screens/search_screen.dart';
 import 'package:quran_tafseer_app/screens/bookmarks_screen.dart';
-import 'package:quran_tafseer_app/screens/recitation_screen.dart';
+import 'package:quran_tafseer_app/screens/recitation_screen.dart'; // Ensure this is imported
 import 'package:quran_tafseer_app/screens/juz_tafseer_screen.dart';
 import 'package:quran_tafseer_app/screens/surah_detail_screen.dart';
 import 'package:quran_tafseer_app/screens/tafseer_mode_screen.dart';
@@ -85,11 +85,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedIndex = index;
     });
 
-    // You might want to handle navigation based on index,
-    // and if it leads to a screen that might save progress,
-    // include the .then(() => _loadLastReadPosition()) part.
+    // Handle navigation based on index
     if (index == 0) {
-      // Home tab - maybe refresh just in case? Or no op.
+      // Home tab
       _loadLastReadPosition(); // Refresh when returning to home via nav bar
     } else if (index == 1) {
       // Quran tab
@@ -111,8 +109,13 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (context) => const BookmarksScreen()),
       );
       // Bookmarks screen might not save read position, so no reload needed here
+    } else if (index == 4) {
+      // NEW: Handle the new 'Listen' tab (index 4)
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const RecitationScreen()),
+      );
     }
-    // Implement for other tabs as needed.
   }
 
   @override
@@ -368,17 +371,19 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icon(Icons.bookmark_outline),
           label: 'Bookmarks',
         ),
+        // MODIFIED: Changed Settings to Listen
         BottomNavigationBarItem(
-          icon: Icon(Icons.settings_outlined),
-          label: 'Settings',
+          icon: Icon(Icons.headphones_outlined), // Changed icon
+          label: 'Listen', // Changed label
         ),
       ],
     );
   }
 }
 
-// --- DailyVerseCard remains the same as you provided ---
+// --- DailyVerseCard and _buildProgressItem remain the same as you provided ---
 class DailyVerseCard extends StatefulWidget {
+  // ... (unchanged) ...
   const DailyVerseCard({super.key});
 
   @override
