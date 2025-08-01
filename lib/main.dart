@@ -33,7 +33,7 @@ Future<void> main() async {
   //         'com.example.quran_tafseer_app.channel.audio',
   //     androidNotificationChannelName: 'Quran Recitation',
   //     androidNotificationOngoing: true,
-  //     androidNotificationClickStartsActivity: true,
+  //     androidNotificationClickStarqtsActivity: true,
   //     androidStopForegroundOnPause: true,
   //   ),
   // );
