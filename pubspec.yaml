@@ -31,11 +31,17 @@ dependencies:
   flutter:
     sdk: flutter
   sqflite: ^2.3.0 # Use the latest version
-  path_provider: ^2.1.1 # To get app's document directory
+  path_provider: ^2.1.3 # To get app's document directory and For file system paths (will be used for caching later)
   shared_preferences: ^2.5.3 #this package is used for local data persistence, as it's simple for storing small key-value pairs like last-read positions
   audioplayers: ^6.0.0 # <--- ADD THIS LINE the popular audioplayers package.
-  share_plus: ^9.0.0 # provides a convenient way to share text, files, and more across various platforms installed on the user's device
+  share_plus: ^11.0.0 # provides a convenient way to share text, files, and more across various platforms installed on the user's device
   # google_fonts: ^6.1.0 # If you have this, keep it.
+  just_audio: ^0.10.4 # or latest stable version
+  just_audio_background: ^0.0.1-beta.11 # or latest stable version
+  audio_service: ^0.18.9
+  audio_session: ^0.2.2
+  rxdart: ^0.28.0 # often used with audio_service for streams
+  dio: ^5.4.3 # For downloading files (will be used for caching later)
   # Add other packages you might need
 
   # The following adds the Cupertino Icons font to your application.
@@ -51,7 +57,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

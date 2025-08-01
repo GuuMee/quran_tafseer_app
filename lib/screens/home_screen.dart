@@ -14,7 +14,6 @@ import 'package:quran_tafseer_app/screens/surah_list_screen.dart';
 import 'package:quran_tafseer_app/screens/search_screen.dart';
 import 'package:quran_tafseer_app/screens/bookmarks_screen.dart';
 import 'package:quran_tafseer_app/screens/recitation_screen.dart'; // Ensure this is imported
-import 'package:quran_tafseer_app/screens/juz_tafseer_screen.dart';
 import 'package:quran_tafseer_app/screens/surah_detail_screen.dart';
 import 'package:quran_tafseer_app/screens/tafseer_mode_screen.dart';
 // --- END IMPORTS ---

@@ -56,7 +56,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
   //_savePositionDebounce: A Timer object used to debounce the saving of the scroll position. This prevents excessive writes to preferences while the user is actively scrolling. This is a NEW and important optimization.
   Timer? _savePositionDebounce;
 
-  bool _isLoading =
+  final bool _isLoading =
       true; //_isLoading: A boolean flag (though not directly used in the build method's main conditional rendering in this version, it's good practice for asynchronous operations).
 
   // NEW: State for tafseer visibility
@@ -273,7 +273,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
 
         // Refine estimatedItemHeight if scroll extent and list length allow
         if (_scrollController.position.maxScrollExtent > 0 &&
-            _filteredAyahs.length > 0) {
+            _filteredAyahs.isNotEmpty) {
           //A more refined estimatedItemHeight is calculated if possible based on maxScrollExtent.
           estimatedItemHeight =
               _scrollController.position.maxScrollExtent /
@@ -532,7 +532,7 @@ class _SurahDetailScreenState extends State<SurahDetailScreen> {
                       child: ExpansionTile(
                         // Use a ValueKey to ensure ExpansionTile state is preserved/reset correctly
                         key: ValueKey(
-                          'ayah_tile_${ayah.surahNumber}_${ayah.ayahNumber}_${_showTafseer}',
+                          'ayah_tile_${ayah.surahNumber}_${ayah.ayahNumber}_$_showTafseer',
                         ),
                         // Control initial expansion based on the global toggle
                         initiallyExpanded: _showTafseer,

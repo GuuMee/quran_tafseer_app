@@ -1,13 +1,42 @@
+// lib/main.dart - Use this code ONLY AFTER pub outdated confirms correct package versions
 import 'package:flutter/material.dart';
-import 'package:quran_tafseer_app/screens/home_screen.dart'; // Import your new screen
-import 'package:quran_tafseer_app/utils/app_colors.dart'; // Import your colors
-import 'package:quran_tafseer_app/utils/app_text_styles.dart'; // Import your text styles
-import 'package:quran_tafseer_app/utils/app_constants.dart'; // Import your dimensions
+import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart'; // Keep this import
+import 'package:quran_tafseer_app/screens/home_screen.dart';
+import 'package:quran_tafseer_app/utils/app_colors.dart';
+import 'package:quran_tafseer_app/utils/app_text_styles.dart';
+import 'package:quran_tafseer_app/utils/app_constants.dart';
 
-void main() {
-  // NEW: Ensure Flutter's widget binding is initialized.
-  // This is crucial for plugins like shared_preferences to work correctly early in the app lifecycle.
+import 'package:quran_tafseer_app/services/central_audio_handler.dart';
+
+// This `late` variable will be assigned by JustAudioBackground.init's internal AudioService.instance
+late final CentralAudioHandler
+globalAudioHandler; // Use late final as it's assigned once
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // // 1. Initialize JustAudioBackground (this only sets up the notification UI)
+  // await JustAudioBackground.init(
+  //   androidNotificationChannelId: 'com.example.quran_tafseer_app.channel.audio',
+  //   androidNotificationChannelName: 'Quran Recitation',
+  //   androidNotificationOngoing: true,
+  //   androidNotificationIcon: 'drawable/ic_stat_music_note',
+  // );
+
+  // // 2. Initialize AudioService separately, injecting your custom CentralAudioHandler
+  // // This is the correct pattern for older just_audio_background versions
+  // globalAudioHandler = await AudioService.init(
+  //   builder: () => CentralAudioHandler(),
+  //   config: const AudioServiceConfig(
+  //     androidNotificationChannelId:
+  //         'com.example.quran_tafseer_app.channel.audio',
+  //     androidNotificationChannelName: 'Quran Recitation',
+  //     androidNotificationOngoing: true,
+  //     androidNotificationClickStartsActivity: true,
+  //     androidStopForegroundOnPause: true,
+  //   ),
+  // );
 
   runApp(const QuranApp());
 }
@@ -64,7 +93,7 @@ class QuranApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomeScreen(), // Use your new screen here!
+      home: const HomeScreen(),
     );
   }
 }
