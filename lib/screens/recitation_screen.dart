@@ -25,7 +25,12 @@ class RecitationScreen extends StatefulWidget {
 }
 
 class _RecitationScreenState extends State<RecitationScreen> {
-  final CentralAudioHandler _audioHandler = AppAudioManager().audioHandler;
+  //final CentralAudioHandler _audioHandler = AppAudioManager().audioHandler;
+  // Make the audio handler nullable to avoid the crash
+  // Get the audio handler directly from the manager
+  // Use a non-nullable variable because it's guaranteed to be initialized.
+  final CentralAudioHandler _audioHandler =
+      AppAudioManager().audioHandler!; // Use '!' to unwrap
 
   // No longer needed here as AppAudioManager handles the base URL and URL generation
   // static const String _audioBaseUrl = 'https://everyayah.com/data/Menshawi_16kbps/';
@@ -49,9 +54,85 @@ class _RecitationScreenState extends State<RecitationScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration.zero, () {
-      _setupAudioPlayerListeners(); // ensures background is fully initialized
+    // Future.delayed(Duration.zero, () {
+    //   _setupAudioPlayerListeners(); // ensures background is fully initialized
+    // });
+    //_initAudioService();
+    // No need for a separate init method, just set up the listeners directly
+    _setupAudioPlayerListeners();
+  }
+
+  // void _initAudioService() {
+  //   _audioHandler = AppAudioManager().audioHandler;
+  //   if (_audioHandler != null) {
+  //     _setupAudioPlayerListeners();
+  //   } else {
+  //     print(
+  //       'Audio service is not initialized. Playback features are disabled.',
+  //     );
+  //   }
+  // }
+
+  void _setupAudioPlayerListeners() {
+    // ... all of your existing listener code goes here ...
+    // ... you need to wrap every use of _audioHandler with a null check.
+
+    _audioHandler!.playerStateStream.listen((playerState) {
+      if (!mounted) return;
+      setState(() {
+        // ... your existing state-setting logic ...
+      });
     });
+
+    _audioHandler!.durationStream.listen((duration) {
+      if (mounted) {
+        setState(() {
+          _totalDuration = duration ?? Duration.zero;
+        });
+      }
+    });
+
+    _audioHandler!.positionStream.listen((position) {
+      if (mounted) {
+        setState(() {
+          _currentDuration = position;
+        });
+      }
+    });
+
+    _audioHandler!.playbackEventStream.listen(
+      (event) {},
+      onError: (Object e, StackTrace st) {
+        print('Playback error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Playback Error: $e')));
+        }
+        _playNextAyah();
+      },
+    );
+
+    //to play Next Ayah Automatically
+    _audioHandler!.playbackEventStream.listen(
+      (event) {
+        if (!mounted) return;
+        // This is the CRITICAL part for automatic playback
+        if (event.processingState == ProcessingState.completed) {
+          print('Playback completed, playing next ayah...');
+          _playNextAyah(); // Call the method to play the next ayah
+        }
+      },
+      onError: (Object e, StackTrace st) {
+        print('Playback error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Playback Error: $e')));
+        }
+        _playNextAyah(); // Try to advance to the next ayah on error
+      },
+    );
   }
 
   // Define _scrollToAyah method (placeholder for now, implement actual scrolling if needed)
@@ -61,75 +142,6 @@ class _RecitationScreenState extends State<RecitationScreen> {
     print('Scrolling to Ayah: $ayahNumber');
   }
 
-  // --- Audio Player Listeners ---
-  void _setupAudioPlayerListeners() {
-    // Listen to player state changes (playing, paused, stopped, completed, buffering)
-    _audioHandler.playerStateStream.listen((playerState) {
-      if (!mounted) return; // Check if the widget is still mounted
-
-      setState(() {
-        // Map JustAudio's states to your app's custom PlayerState for consistent UI
-        if (playerState.playing) {
-          _playerState = AppPlayerState.PlayerState.playing;
-        } else if (playerState.processingState == ProcessingState.completed) {
-          _playerState = AppPlayerState.PlayerState.completed;
-          // When an Ayah completes, automatically play the next one
-          print('Player completed. Moving to next Ayah.');
-          _playNextAyah();
-        } else if (playerState.processingState == ProcessingState.ready) {
-          _playerState =
-              AppPlayerState
-                  .PlayerState
-                  .paused; // Player is ready but not playing
-        } else if (playerState.processingState == ProcessingState.idle) {
-          _playerState =
-              AppPlayerState.PlayerState.stopped; // Player is idle/stopped
-        } else if (playerState.processingState == ProcessingState.buffering) {
-          _playerState =
-              AppPlayerState.PlayerState.loading; // Player is buffering
-        }
-      });
-      print(
-        'JustAudio Player State: ${playerState.processingState}, Playing: ${playerState.playing}',
-      );
-      print('Mapped App Player State: $_playerState');
-    });
-
-    // Listen to duration changes (total length of current audio)
-    _audioHandler.durationStream.listen((duration) {
-      if (mounted) {
-        setState(() {
-          _totalDuration =
-              duration ?? Duration.zero; // Use ?? Duration.zero to handle null
-        });
-        print('Duration Changed: $_totalDuration');
-      }
-    });
-
-    // Listen to position changes (current progress of playback)
-    _audioHandler.positionStream.listen((position) {
-      if (mounted) {
-        setState(() {
-          _currentDuration = position;
-        });
-        // print('Position Changed: $_currentDuration / $_totalDuration'); // Uncomment if needed for detailed logs
-      }
-    });
-
-    // Listen to errors from the audio player
-    _audioHandler.playbackEventStream.listen(
-      (event) {}, // This listener is for all playback events
-      onError: (Object e, StackTrace st) {
-        print('Playback error: $e');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Playback Error: $e')));
-        // Optionally, try to play the next ayah if an error occurs
-        _playNextAyah();
-      },
-    );
-  }
-
   // --- Audio URL Helper (remove as AppAudioManager handles it now) ---
   // String _getAudioUrl(int surahNumber, int ayahNumber) { ... }
 
@@ -137,7 +149,12 @@ class _RecitationScreenState extends State<RecitationScreen> {
 
   // Play a full Surah (starts from its first Ayah)
   Future<void> _playSurah(int surahIndex) async {
-    await _audioHandler.stop(); // Stop any currently playing audio
+    // Add a small delay to prevent the race condition
+    // This allows the player to finish its 'completed' state processing
+    await Future.delayed(Duration(milliseconds: 100));
+
+    await _audioHandler!.stop(); // Stop any currently playing audio
+    // ... rest of your logic
 
     setState(() {
       _currentPlayingSurahIndex = surahIndex;
@@ -156,7 +173,13 @@ class _RecitationScreenState extends State<RecitationScreen> {
   Future<void> _playAyahInSequence() async {
     if (_currentPlayingSurahIndex == null ||
         _currentPlayingAyahNumber == null) {
-      print('No current Surah or Ayah selected to play.');
+      print('Error: Cannot play in sequence. Surah or Ayah index is null.');
+      // Fallback to a default, like the first ayah of the first surah
+      await AppAudioManager().playAyah(
+        surahNumber: 1,
+        ayahNumber: 1,
+        surahEnglishName: 'Al-Fatiha',
+      );
       return;
     }
     final Surah currentSurah = _allSurahs[_currentPlayingSurahIndex!];
@@ -189,17 +212,33 @@ class _RecitationScreenState extends State<RecitationScreen> {
 
   // Play the next Ayah in the current Surah or move to the next Surah
   void _playNextAyah() {
-    if (_currentPlayingSurahIndex == null) return;
-
+    if (_currentPlayingSurahIndex == null) {
+      print('DEBUG: _playNextAyah called but no surah is selected.');
+      return;
+    }
     final Surah currentSurah = _allSurahs[_currentPlayingSurahIndex!];
     final int nextAyahNum = (_currentPlayingAyahNumber ?? 0) + 1;
 
+    print('DEBUG: _playNextAyah called for Surah ${currentSurah.number}.');
+    print('DEBUG: Current playing Ayah: $_currentPlayingAyahNumber');
+    print('DEBUG: Next Ayah number to check: $nextAyahNum');
+    print(
+      'DEBUG: Total Ayahs in Surah ${currentSurah.number}: ${currentSurah.numberOfAyahs}',
+    );
+
     if (nextAyahNum <= currentSurah.numberOfAyahs) {
+      print(
+        'DEBUG: Condition met: nextAyahNum ($nextAyahNum) is <= totalAyahs.',
+      );
       setState(() {
         _currentPlayingAyahNumber = nextAyahNum;
       });
       _playAyahInSequence();
     } else {
+      print(
+        'DEBUG: Condition NOT met: nextAyahNum ($nextAyahNum) is > totalAyahs.',
+      );
+      print('DEBUG: Playing next surah...');
       // If last Ayah of current Surah, try to play the next Surah
       _playNextSurah();
     }
@@ -225,15 +264,23 @@ class _RecitationScreenState extends State<RecitationScreen> {
   // Play the next Surah in the list
   void _playNextSurah() {
     if (_currentPlayingSurahIndex == null) {
+      print(
+        'DEBUG: _playNextSurah called with no surah playing. Starting from the beginning.',
+      );
       _playSurah(0); // If nothing is playing, start from the first surah
       return;
     }
 
     final int nextSurahIndex = _currentPlayingSurahIndex! + 1;
+    print('DEBUG: Attempting to play next surah at index: $nextSurahIndex');
     if (nextSurahIndex < _allSurahs.length) {
+      print(
+        'DEBUG: Next surah index is valid. Playing Surah: ${_allSurahs[nextSurahIndex].englishName}',
+      );
       _playSurah(nextSurahIndex);
     } else {
       // End of playlist
+      print('DEBUG: End of playlist reached.');
       _stopAudio(); // Stop explicitly when playlist ends
       ScaffoldMessenger.of(
         context,
@@ -261,9 +308,9 @@ class _RecitationScreenState extends State<RecitationScreen> {
   // Toggle play/pause state
   Future<void> _togglePlayPause() async {
     if (_playerState == AppPlayerState.PlayerState.playing) {
-      await _audioHandler.pause();
+      await _audioHandler!.pause();
     } else if (_playerState == AppPlayerState.PlayerState.paused) {
-      await _audioHandler.play(); // Use play() to resume
+      await _audioHandler!.play(); // Use play() to resume
     } else {
       // If stopped or completed, start from the current or first surah
       if (_currentPlayingSurahIndex == null) {
@@ -276,7 +323,8 @@ class _RecitationScreenState extends State<RecitationScreen> {
 
   // Dedicated Stop Function
   void _stopAudio() async {
-    await _audioHandler.stop(); // just_audio uses stop()
+    if (_audioHandler == null) return;
+    await _audioHandler!.stop(); // just_audio uses stop()
     setState(() {
       _playerState = AppPlayerState.PlayerState.stopped;
       _currentPlayingSurahIndex = null;
@@ -395,6 +443,10 @@ class _RecitationScreenState extends State<RecitationScreen> {
 
   // Player Control Widget (already updated in previous response)
   Widget _buildPlayerControls() {
+    if (_audioHandler == null) {
+      return SizedBox();
+    }
+
     final Surah? currentSurah =
         _currentPlayingSurahIndex != null
             ? _allSurahs[_currentPlayingSurahIndex!]

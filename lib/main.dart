@@ -13,32 +13,37 @@ import 'package:quran_tafseer_app/services/central_audio_handler.dart';
 late final CentralAudioHandler
 globalAudioHandler; // Use late final as it's assigned once
 
+Future<void> _initAudioService() async {
+  // Wait for the audio service to be initialized
+  globalAudioHandler = await AudioService.init(
+    builder: () => CentralAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId:
+          'com.example.quran_tafseer_app.channel.audio',
+      androidNotificationChannelName: 'Quran Recitation',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // // 1. Initialize JustAudioBackground (this only sets up the notification UI)
-  // await JustAudioBackground.init(
-  //   androidNotificationChannelId: 'com.example.quran_tafseer_app.channel.audio',
-  //   androidNotificationChannelName: 'Quran Recitation',
-  //   androidNotificationOngoing: true,
-  //   androidNotificationIcon: 'drawable/ic_stat_music_note',
-  // );
-
-  // // 2. Initialize AudioService separately, injecting your custom CentralAudioHandler
-  // // This is the correct pattern for older just_audio_background versions
-  // globalAudioHandler = await AudioService.init(
-  //   builder: () => CentralAudioHandler(),
-  //   config: const AudioServiceConfig(
-  //     androidNotificationChannelId:
-  //         'com.example.quran_tafseer_app.channel.audio',
-  //     androidNotificationChannelName: 'Quran Recitation',
-  //     androidNotificationOngoing: true,
-  //     androidNotificationClickStarqtsActivity: true,
-  //     androidStopForegroundOnPause: true,
-  //   ),
-  // );
-
-  runApp(const QuranApp());
+  runApp(
+    FutureBuilder(
+      future: _initAudioService(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          // Once the audio service is initialized, show the main app
+          return const QuranApp();
+        } else {
+          // Show a loading screen or splash screen while waiting
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
+    ),
+  );
 }
 
 class QuranApp extends StatelessWidget {
